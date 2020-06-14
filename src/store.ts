@@ -1,9 +1,6 @@
 import { isObject, isPromise, setFromForeachable, isArray } from "./utils";
 import { AnyObject, AnyFunction, StringKeys } from "./types";
-
-// move to constants file since we use it in a lot of places
-const NOT_PRODUCTION =
-  process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+import { NOT_PRODUCTION } from "./env";
 
 type Payload<T extends string> = {
   type: T;
@@ -37,13 +34,13 @@ type Commit = {
   (_type: string, payload?: any): any;
 };
 
-type ActionKey<T> = T extends { type: string }
+type GetType<T> = T extends { type: string }
   ? T["type"]
   : T extends string
   ? T
   : any;
 
-type PayloadType<T extends AnyObject, K> = Parameters<T[ActionKey<K>]>[1];
+type PayloadType<T extends AnyObject, K> = Parameters<T[GetType<K>]>[1];
 
 export default class Store<
   S extends AnyObject,
@@ -127,7 +124,7 @@ export default class Store<
     const { state, subscribers } = this;
     const mutationArguments = { type, payload };
     // make a copy of subscribers to not end up in
-    // an infinite loop, when subscriber and another subscriber
+    // an infinite loop, when subscriber adds another subscriber
     const subscribersCopy = setFromForeachable(subscribers);
     subscribersCopy.forEach(sub => sub(mutationArguments, state));
   }
@@ -304,7 +301,7 @@ function isPayload(val: unknown): val is Payload<string> {
 //   },
 // });
 
-// ok
+// // ok
 // store.state.todos;
 // store.getters.todosCount;
 // store.dispatch("addTodo");
@@ -322,6 +319,7 @@ function isPayload(val: unknown): val is Payload<string> {
 // store.dispatch({ hello: 1 });
 // store.commit("hello");
 // store.commit({ hello: 1 });
+// store.commit({ type: 1 });
 
 // @ts-ignore
 // window.store = store;
