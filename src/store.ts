@@ -11,7 +11,7 @@ type Getters<G> = {
   [K in keyof G]: G[K] extends AnyFunction ? ReturnType<G[K]> : G[K];
 };
 
-type Getter<S> = (state: S, getters: Record<string, AnyFunction>) => any;
+type Getter<S> = (state: S, getters: AnyObject) => any;
 
 type Action<S> = (ctx: ActionContext<S>, payload?: any) => any;
 
