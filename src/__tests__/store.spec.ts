@@ -211,4 +211,42 @@ describe("Store", () => {
     expect(store.getters.state).toBe("hasAny");
     store.dispatch("check", "hasAny");
   });
+
+  it("invokes getters only when its dependencies changed", () => {
+    const stateGetter = jest.fn((state: any) =>
+      state.a > 0 ? "hasAny" : "none"
+    );
+
+    const store = new Store({
+      state: {
+        a: 0,
+      },
+      getters: {
+        state: stateGetter,
+      },
+      mutations: {
+        [TEST](state, n) {
+          state.a = n;
+        },
+      },
+    });
+
+    expect(store.getters.state).toBe("none");
+    expect(stateGetter).toBeCalledTimes(1);
+
+    store.commit(TEST, 0);
+
+    expect(store.getters.state).toBe("none");
+    expect(stateGetter).toBeCalledTimes(1);
+
+    store.commit(TEST, 1);
+
+    expect(store.getters.state).toBe("hasAny");
+    expect(stateGetter).toBeCalledTimes(2);
+
+    store.commit(TEST, 1);
+
+    expect(store.getters.state).toBe("hasAny");
+    expect(stateGetter).toBeCalledTimes(2);
+  });
 });

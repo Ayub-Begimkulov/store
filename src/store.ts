@@ -54,6 +54,7 @@ export default class Store<
   _mutations: AnyObject;
   strict: boolean;
   isCommitting: boolean;
+  runningReaction: null | Function = null;
   subscribers = new Set<Function>();
 
   constructor({
@@ -153,8 +154,13 @@ export default class Store<
       let currentValue =
         isObject(value) && !isArray(value) ? this._initState(value) : value;
 
+      const deps = new Set<Function>();
+
       Object.defineProperty(state, key, {
         get() {
+          if (store.runningReaction) {
+            deps.add(store.runningReaction);
+          }
           return currentValue;
         },
         set(newVal) {
@@ -163,7 +169,9 @@ export default class Store<
               "do not mutate store state outside mutation handlers"
             );
           }
-
+          if (newVal !== currentValue) {
+            deps.forEach(fn => fn());
+          }
           currentValue = newVal;
         },
         enumerable: true,
@@ -189,9 +197,17 @@ function registerGetter(
     return;
   }
   const getter = () => handler(store.state, store.getters);
+  let isDirty = false;
+  store.runningReaction = () => (isDirty = true);
+  let value = getter();
+  store.runningReaction = null;
   Object.defineProperty(store._getters, type, {
     get() {
-      return getter();
+      if (isDirty) {
+        value = getter();
+        isDirty = false;
+      }
+      return value;
     },
   });
 }
