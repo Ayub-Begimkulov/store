@@ -1,4 +1,5 @@
-import { isObject, isPromise, setFromForeachable, isArray } from "./utils";
+import { observable, observe, computed } from "observable";
+import { isObject, isPromise, setFromForeachable /* isArray */ } from "./utils";
 import { AnyObject, AnyFunction, StringKeys } from "./types";
 import { NOT_PRODUCTION } from "./env";
 
@@ -54,7 +55,6 @@ export default class Store<
   _mutations: AnyObject;
   strict: boolean;
   isCommitting: boolean;
-  runningReaction: null | Function = null;
   subscribers = new Set<Function>();
 
   constructor({
@@ -149,35 +149,22 @@ export default class Store<
 
   private _initState<T>(obj: T) {
     const store = this;
+    const state = observable(obj);
 
-    return Object.entries(obj).reduce((state, [key, value]) => {
-      let currentValue =
-        isObject(value) && !isArray(value) ? this._initState(value) : value;
-
-      const deps = new Set<Function>();
-
-      Object.defineProperty(state, key, {
-        get() {
-          if (store.runningReaction) {
-            deps.add(store.runningReaction);
-          }
-          return currentValue;
-        },
-        set(newVal) {
-          if (store.strict && !store.isCommitting && NOT_PRODUCTION) {
-            throw new Error(
-              "do not mutate store state outside mutation handlers"
-            );
-          }
-          if (newVal !== currentValue) {
-            deps.forEach(fn => fn());
-          }
-          currentValue = newVal;
-        },
-        enumerable: true,
+    let initializing = true;
+    if (NOT_PRODUCTION && store.strict) {
+      observe(() => {
+        if (!store.isCommitting && !initializing) {
+          throw new Error(
+            "do not mutate store state outside mutation handlers"
+          );
+        }
+        traverse(obj);
       });
-      return state;
-    }, {} as S);
+    }
+    initializing = false;
+
+    return state;
   }
 }
 
@@ -196,18 +183,10 @@ function registerGetter(
     }
     return;
   }
-  const getter = () => handler(store.state, store.getters);
-  let isDirty = false;
-  store.runningReaction = () => (isDirty = true);
-  let value = getter();
-  store.runningReaction = null;
+  const computedValue = computed(() => handler(store.state, store.getters));
   Object.defineProperty(store._getters, type, {
     get() {
-      if (isDirty) {
-        value = getter();
-        isDirty = false;
-      }
-      return value;
+      return computedValue.value;
     },
   });
 }
@@ -289,53 +268,13 @@ function isPayload(val: unknown): val is Payload<string> {
   return isObject(val) && val.type;
 }
 
-// const store = new Store({
-//   state: {
-//     todos: ["asdf"],
-//     test: {
-//       a: 1,
-//     },
-//   },
-//   getters: {
-//     todosCount: state => state.todos.length,
-//   },
-//   actions: {
-//     addTodo(ctx, payload: string) {
-//       ctx.commit("addTodo", payload);
-//     },
-//     removeTodo(ctx, payload: string) {
-//       ctx.commit("removeTodo", payload);
-//     },
-//   },
-//   mutations: {
-//     addTodo(state, payload: string) {
-//       state.todos.push(payload);
-//     },
-//     updateTest(state) {
-//       state.test.a = Math.random();
-//     },
-//   },
-// });
-
-// // ok
-// store.state.todos;
-// store.getters.todosCount;
-// store.dispatch("addTodo");
-// store.dispatch({ type: "addTodo" });
-// store.commit("addTodo");
-// store.commit({ type: "addTodo" });
-// store.subscribe(({ type, payload }, state) => {
-//   console.log(type, payload, state);
-// });
-// // error
-// store.state.todos1;
-// store.getters.adsfads;
-// store.dispatch("hello");
-// store.commit({ type: "132addTodo" });
-// store.dispatch({ hello: 1 });
-// store.commit("hello");
-// store.commit({ hello: 1 });
-// store.commit({ type: 1 });
-
-// @ts-ignore
-// window.store = store;
+function traverse(value: unknown, seen: Set<unknown> = new Set()) {
+  if (!isObject(value) || seen.has(value)) {
+    return value;
+  }
+  seen.add(value);
+  for (const key in value) {
+    traverse(value[key], seen);
+  }
+  return value;
+}
