@@ -177,12 +177,6 @@ function registerGetter(
   type: string,
   handler: AnyFunction
 ) {
-  if (store._getters[type]) {
-    if (NOT_PRODUCTION) {
-      throw new Error(`duplicate getter ${type}`);
-    }
-    return;
-  }
   const computedValue = computed(() => handler(store.state, store.getters));
   Object.defineProperty(store._getters, type, {
     get() {
@@ -196,12 +190,6 @@ function registerAction(
   type: string,
   handler: AnyFunction
 ) {
-  if (store._actions[type]) {
-    if (NOT_PRODUCTION) {
-      throw new Error(`duplicate action ${type}`);
-    }
-    return;
-  }
   store._actions[type] = (payload: any) => {
     let res = handler.call(
       store,
@@ -225,12 +213,6 @@ function registerMutation(
   type: string,
   handler: AnyFunction
 ) {
-  if (store._mutations[type]) {
-    if (NOT_PRODUCTION) {
-      throw new Error(`duplicate mutation ${type}`);
-    }
-    return;
-  }
   store._mutations[type] = (payload: any) => {
     handler.call(store, store.state, payload);
   };
